@@ -1,5 +1,3 @@
-"""DTOs and validation for orders microservice."""
-
 from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 

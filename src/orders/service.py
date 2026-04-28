@@ -1,5 +1,3 @@
-"""Business logic for orders: detail, list, cancel requests, backoffice cancel/refund."""
-
 import os
 import random
 import string
