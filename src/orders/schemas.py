@@ -1,5 +1,4 @@
 from typing import Annotated, List, Literal, Optional, Union
-
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 
