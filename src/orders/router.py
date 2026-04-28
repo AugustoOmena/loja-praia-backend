@@ -1,21 +1,9 @@
-"""
-Router infrastructure for the orders microservice.
-
-Responsibilities:
-- Powertools resolver instance (app)
-- Context accessors: current_event, query_params, headers, body_json
-- @route decorator: maps exceptions to HTTP responses
-- resolve(): normalizes incoming event and unwraps the router response
-"""
 from __future__ import annotations
-
 import json
 from functools import wraps
 from typing import Any
-
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.event_handler.api_gateway import APIGatewayHttpResolver
-
 from exceptions import ForbiddenError
 from shared.responses import http_response
 
@@ -72,36 +60,23 @@ def route(fn: Any) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# resolve() — normalizes event format and unwraps the router envelope
+# resolve() — uses event as-is and unwraps the router envelope
 # ---------------------------------------------------------------------------
 
 def resolve(event: dict, context: Any) -> dict:
-    return _unwrap(app.resolve(_normalize(event), context))
+    _validate_event_contract(event)
+    return _unwrap(app.resolve(event, context))
 
 
-def _normalize(event: dict) -> dict:
-    """Fills in rawPath and requestContext fields that API Gateway provides
-    in production but may be absent in local/test events."""
-    normalized = dict(event)
-    if not normalized.get("rawPath"):
-        proxy = (normalized.get("pathParameters") or {}).get("proxy") or ""
-        hdrs = (normalized.get("headers") or {})
-        is_backoffice = (
-            hdrs.get("x-backoffice", "").lower() == "true"
-            or hdrs.get("X-Backoffice", "").lower() == "true"
-        )
-        prefix = "/backoffice/pedidos" if is_backoffice else "/pedidos"
-        normalized["rawPath"] = f"{prefix}/{proxy}" if proxy else prefix
-
-    request_context = normalized.get("requestContext") or {}
-    http_data = request_context.get("http") or {}
+def _validate_event_contract(event: dict) -> None:
+    request_context = event.get("requestContext") or {}
+    http = request_context.get("http") or {}
+    if not event.get("rawPath"):
+        raise ValueError("Evento inválido: rawPath obrigatório")
     if not request_context.get("stage"):
-        request_context["stage"] = "$default"
-    if not http_data.get("path"):
-        http_data["path"] = normalized["rawPath"]
-    request_context["http"] = http_data
-    normalized["requestContext"] = request_context
-    return normalized
+        raise ValueError("Evento inválido: requestContext.stage obrigatório")
+    if not http.get("method"):
+        raise ValueError("Evento inválido: requestContext.http.method obrigatório")
 
 
 def _unwrap(response: dict) -> dict:

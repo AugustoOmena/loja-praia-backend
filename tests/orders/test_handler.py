@@ -19,22 +19,23 @@ def mock_order_service():
 
 def _get_event(
     method: str = "GET",
+    raw_path: str = "/backoffice/pedidos",
     path_proxy: str = "",
     user_id: str | None = "admin-user-123",
-    x_backoffice: str = "true",
 ) -> dict:
-    """Build API Gateway-like event for GET /pedidos (list)."""
+    """Build API Gateway-like event for orders handler."""
     return {
-        "requestContext": {"http": {"method": method}},
+        "rawPath": raw_path,
+        "requestContext": {"stage": "$default", "http": {"method": method, "path": raw_path}},
         "pathParameters": {"proxy": path_proxy} if path_proxy else {},
         "queryStringParameters": {"user_id": user_id} if user_id else None,
-        "headers": {"x-backoffice": x_backoffice, "X-Backoffice": x_backoffice},
+        "headers": {},
         "body": None,
     }
 
 
 def test_get_orders_admin_returns_user_email(mock_order_service: MagicMock) -> None:
-    """GET /pedidos with X-Backoffice and user_id returns list with user_email per order."""
+    """GET /backoffice/pedidos with user_id returns admin list."""
     mock_order_service.list_all_orders_for_admin.return_value = {
         "data": [
             {
@@ -61,7 +62,7 @@ def test_get_orders_admin_returns_user_email(mock_order_service: MagicMock) -> N
         "count": 2,
     }
 
-    event = _get_event()
+    event = _get_event(raw_path="/backoffice/pedidos")
     response = lambda_handler(event, MagicMock())
 
     assert response["statusCode"] == 200
@@ -75,7 +76,7 @@ def test_get_orders_admin_returns_user_email(mock_order_service: MagicMock) -> N
 
 
 def test_get_order_detail_backoffice_calls_admin_method(mock_order_service: MagicMock) -> None:
-    """GET /pedidos/{id} com X-Backoffice usa admin (user_id do admin, não do cliente)."""
+    """GET /backoffice/pedidos/{id} usa fluxo admin."""
     mock_order_service.get_order_detail_for_admin.return_value = {
         "id": "75a4a6e0-b3a9-4a1e-a908-169835bbd574",
         "user_id": "customer-uuid",
@@ -84,10 +85,11 @@ def test_get_order_detail_backoffice_calls_admin_method(mock_order_service: Magi
         "items": [],
     }
     event = {
-        "requestContext": {"http": {"method": "GET"}},
+        "rawPath": "/backoffice/pedidos/75a4a6e0-b3a9-4a1e-a908-169835bbd574",
+        "requestContext": {"stage": "$default", "http": {"method": "GET", "path": "/backoffice/pedidos/75a4a6e0-b3a9-4a1e-a908-169835bbd574"}},
         "pathParameters": {"proxy": "75a4a6e0-b3a9-4a1e-a908-169835bbd574"},
         "queryStringParameters": {"user_id": "531d3a84-9a7b-450b-a307-0b93d5eed907"},
-        "headers": {"x-backoffice": "true", "Authorization": "Bearer token"},
+        "headers": {"Authorization": "Bearer token"},
         "body": None,
     }
     response = lambda_handler(event, MagicMock())
@@ -102,7 +104,8 @@ def test_get_order_detail_customer_calls_customer_method(mock_order_service: Mag
     """GET /pedidos/{id} sem backoffice: user_id deve ser o dono do pedido."""
     mock_order_service.get_order_detail.return_value = {"id": "ord-1", "items": []}
     event = {
-        "requestContext": {"http": {"method": "GET"}},
+        "rawPath": "/pedidos/ord-1",
+        "requestContext": {"stage": "$default", "http": {"method": "GET", "path": "/pedidos/ord-1"}},
         "pathParameters": {"proxy": "ord-1"},
         "queryStringParameters": {"user_id": "customer-uuid"},
         "headers": {},
