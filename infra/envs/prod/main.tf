@@ -2,12 +2,12 @@ terraform {
   required_version = ">= 1.0.0" # Boa prática
 
   backend "s3" {
-    bucket = "augusto-omena-tfstate"   # <--- O NOME QUE VOCÊ CRIOU
+    bucket = "augusto-omena-tfstate"
     key    = "backend/terraform.tfstate" # O caminho dentro do bucket (organização)
     region = "us-east-1"
-    
+
     # Opcional (Recomendado): Encripta o arquivo em repouso
-    encrypt = true 
+    encrypt = true
   }
 }
 
@@ -305,13 +305,27 @@ resource "aws_apigatewayv2_route" "orders_proxy" {
   target    = "integrations/${aws_apigatewayv2_integration.orders.id}"
 }
 
+# Rota 3: Backoffice (/backoffice/pedidos) para listar pedidos no painel admin
+resource "aws_apigatewayv2_route" "orders_backoffice_root" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "ANY /backoffice/pedidos"
+  target    = "integrations/${aws_apigatewayv2_integration.orders.id}"
+}
+
+# Rota 4: Backoffice proxy (/backoffice/pedidos/{id}) para detalhe/atualizacao no painel admin
+resource "aws_apigatewayv2_route" "orders_backoffice_proxy" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "ANY /backoffice/pedidos/{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.orders.id}"
+}
+
 # Permissão Genérica (O * no final permite sub-rotas como /pedidos/{id} e /pedidos/{id}/solicitar-cancelamento)
 resource "aws_lambda_permission" "api_gw_orders" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
   function_name = module.orders_lambda.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*/pedidos*"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*/*pedidos*"
 }
 
 # --- 7. MICROSERVIÇO: SHIPPING (Cálculo de frete - Melhor Envio) ---
