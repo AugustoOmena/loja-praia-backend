@@ -4,11 +4,14 @@ import string
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
-
 import requests
-
 from repository import OrderRepository
-from schemas import BackofficeCancelInput, CancelRequestInput
+from schemas import (
+    BackofficeCancelInput,
+    BackofficeRefundByAmount,
+    BackofficeRefundFull,
+    CancelRequestInput,
+)
 
 
 ORDER_COMPLETED_STATUSES = ("approved", "completed")
@@ -241,9 +244,10 @@ class OrderService:
         payload: BackofficeCancelInput,
     ) -> dict[str, Any]:
         """
-        Backoffice: reembolso MP ou voucher.
-        - Fluxo principal: ``refund_amount`` + ``refund_method``; ``order_item_ids`` vazio; teto mercadoria.
-        - Legado: ``full_cancel`` (saldo mercadoria restante) ou ``cancel_item_ids`` (soma das linhas).
+        Backoffice: reembolso MP ou voucher, com modo explícito.
+        - ``mode=amount``: usa ``refund_amount``.
+        - ``mode=full``: reembolsa todo o saldo de mercadoria restante.
+        - ``mode=items``: soma os itens enviados em ``order_item_ids``.
         """
         order = self.repo.get_order_with_items(order_id, user_id=None)
         if not order:
@@ -254,15 +258,16 @@ class OrderService:
         ja = _sum_refunded_merchandise(refunds_existing)
         rem, teto, ja_display = _merchandise_refund_cap(order, ja)
 
-        if payload.refund_amount is not None:
-            amount = round(float(payload.refund_amount), 2)
+        refund_data = payload.root
+        if isinstance(refund_data, BackofficeRefundByAmount):
+            amount = round(float(refund_data.refund_amount), 2)
             if amount > rem + _MONEY_EPS:
                 raise ValueError(
                     f"Valor acima do permitido. Máximo: R$ {rem:.2f} "
                     f"(mercadoria até R$ {teto:.2f}, já reembolsado R$ {ja_display:.2f})."
                 )
-            item_ids: list[str] = []
-        elif payload.full_cancel:
+            item_ids = []
+        elif isinstance(refund_data, BackofficeRefundFull):
             if rem <= _MONEY_EPS:
                 raise ValueError(
                     f"Não há saldo de mercadoria para reembolsar (máx. R$ {teto:.2f}, já R$ {ja_display:.2f})."
@@ -270,9 +275,7 @@ class OrderService:
             amount = rem
             item_ids = [str(i["id"]) for i in items]
         else:
-            cancel_ids = payload.cancel_item_ids or []
-            if not cancel_ids:
-                raise ValueError("Informe cancel_item_ids ou full_cancel=true ou refund_amount")
+            cancel_ids = refund_data.order_item_ids
             selected = self.repo.get_order_items_by_ids(order_id, cancel_ids)
             if len(selected) != len(cancel_ids):
                 raise Exception("Um ou mais itens não pertencem a este pedido")
@@ -296,7 +299,7 @@ class OrderService:
             order_item_ids=item_ids,
         )
         refund_id = ref["id"]
-        if payload.refund_method == "mp":
+        if refund_data.refund_method == "mp":
             if not mp_payment_id:
                 raise Exception("Pedido sem mp_payment_id; reembolso MP não disponível")
             if not self._mp_token:
@@ -313,7 +316,7 @@ class OrderService:
                 refund_id, status="refunded", refund_method="voucher", voucher_id=voucher["id"]
             )
             result_refund = {"voucher": voucher, "status": "refunded"}
-        if payload.full_cancel:
+        if isinstance(refund_data, BackofficeRefundFull):
             self.repo.update_order_delivery_status(order_id, "cancelled")
         return {
             "message": "Cancelamento e reembolso processados",
