@@ -1,2 +1,10 @@
 pytest>=7.0.0
 pydantic>=2.0.0
+requests>=2.28.0
+mercadopago>=1.0.0
+supabase>=1.0.0
+aws-lambda-powertools[parser]>=1.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.0.0
+pytest-env>=0.8.0
+pytest-timeout>=2.0.0
