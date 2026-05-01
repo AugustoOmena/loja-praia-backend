@@ -49,7 +49,7 @@ BackofficeRefundPayload = Annotated[
 
 
 class BackofficeCancelInput(RootModel[BackofficeRefundPayload]):
-    model_config = ConfigDict(extra="forbid")
+    pass
 
 
 class OrderStatusUpdate(BaseModel):
