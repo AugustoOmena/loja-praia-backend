@@ -152,6 +152,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_code TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_service TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_amount NUMERIC;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS melhor_envio_order_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_agency_id INTEGER;
 
 -- Índices para correlação e consultas de frete/webhook
 CREATE INDEX IF NOT EXISTS idx_orders_melhor_envio_order_id ON orders(melhor_envio_order_id);

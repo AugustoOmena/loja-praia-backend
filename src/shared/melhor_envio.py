@@ -35,12 +35,11 @@ def _env(key: str, default: str | None = None) -> str:
 
 
 def _parse_quote_option(entry: dict[str, Any]) -> dict[str, Any] | None:
-    name = (
-        entry.get("name")
-        or (entry.get("company") or {}).get("name")
-        or entry.get("company_name")
-        or "Transportadora"
-    )
+    # Carrier name vem de company.name ("Jadlog", "Correios"); entry.name é o serviço (".Package", "PAC")
+    company = entry.get("company") or {}
+    carrier_name = company.get("name") or entry.get("company_name") or entry.get("name") or "Transportadora"
+    service_name = entry.get("name") or ""
+
     value = entry.get("price")
     if value is None:
         return None
@@ -48,27 +47,39 @@ def _parse_quote_option(entry: dict[str, Any]) -> dict[str, Any] | None:
         price_float = float(value)
     except (TypeError, ValueError):
         return None
+
     delivery = (
-        entry.get("delivery_time")
+        entry.get("custom_delivery_time")
+        or entry.get("delivery_time")
         or entry.get("delivery_time_min")
-        or entry.get("custom_delivery_time")
     )
     try:
         days = int(delivery) if delivery is not None else None
     except (TypeError, ValueError):
         days = None
-    service_id = (
-        entry.get("service")
-        or (entry.get("company") or {}).get("id")
-        or (entry.get("company") or {}).get("code")
-        or entry.get("id")
-    )
-    service = str(service_id).strip() if service_id is not None else None
+
+    # entry["id"] é o service_id numérico do ME (1=PAC, 2=SEDEX, 3=Jadlog .Package…)
+    raw_id = entry.get("id")
+    try:
+        service_id = int(raw_id) if raw_id is not None else None
+    except (TypeError, ValueError):
+        service_id = None
+
+    # agency_id: presente na resposta do calculate para transportadoras que exigem agência (Jadlog)
+    agency = entry.get("agency") or {}
+    raw_agency_id = agency.get("id")
+    try:
+        agency_id = int(raw_agency_id) if raw_agency_id is not None else None
+    except (TypeError, ValueError):
+        agency_id = None
+
     return {
-        "transportadora": name,
+        "transportadora": carrier_name,
+        "servico": service_name,
         "preco": round(price_float, 2),
         "prazo_entrega_dias": days,
-        "service": service,
+        "service": service_id,
+        "agency_id": agency_id,
     }
 
 
@@ -267,17 +278,19 @@ def add_to_cart(
     products: list[dict[str, Any]],
     volumes: list[dict[str, Any]],
     options: dict[str, Any] | None = None,
+    agency_id: int | None = None,
 ) -> dict[str, Any]:
     """
     Adiciona uma etiqueta ao carrinho do Melhor Envio.
 
     Args:
-        service_id: ID do serviço (1=PAC, 2=SEDEX, etc.)
+        service_id: ID do serviço (1=PAC, 2=SEDEX, 3=Jadlog .Package, etc.)
         sender: Dados do remetente (name, phone, email, document, address, etc.)
         recipient: Dados do destinatário (name, phone, email, document, address, etc.)
         products: Lista de produtos [{name, quantity, unitary_value}]
-        volumes: Lista de volumes [{height, width, length, weight}]
-        options: Opções adicionais (insurance_value, receipt, own_hand, etc.)
+        volumes: Lista de volumes [{height, width, length, weight}] — sem campo 'quantity'
+        options: Opções adicionais (insurance_value, receipt, own_hand, non_commercial, etc.)
+        agency_id: ID da agência de postagem — obrigatório para Jadlog; obtido no retorno da cotação.
 
     Returns:
         dict com 'id' do pedido no Melhor Envio e outros dados.
@@ -285,14 +298,23 @@ def add_to_cart(
     Raises:
         MelhorEnvioAPIError: On API error.
     """
-    body = {
+    merged_options: dict[str, Any] = {"insurance_value": 1, "receipt": False, "own_hand": False, "reverse": False}
+    if options:
+        merged_options.update(options)
+    if merged_options.get("non_commercial") is None:
+        merged_options["non_commercial"] = merged_options.get("invoice") is None
+
+    body: dict[str, Any] = {
         "service": service_id,
         "from": sender,
         "to": recipient,
         "products": products,
         "volumes": volumes,
-        "options": options or {"insurance_value": 1, "receipt": False, "own_hand": False},
+        "options": merged_options,
     }
+    if agency_id is not None:
+        body["agency"] = agency_id
+
     return _api_request(CART_PATH, "POST", body)
 
 
