@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Union
 
-from domain.command_handlers._base import require_order_id, require_user_id
+from domain.command_handlers._base import require_order_id, require_user_id, parse_positive_int
 
 
 @dataclass(frozen=True)
