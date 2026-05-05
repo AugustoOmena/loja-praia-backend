@@ -1,14 +1,17 @@
 from aws_lambda_powertools.utilities.parser import parse
 from aws_lambda_powertools.utilities.typing import LambdaContext
-from commands.get_order_detail import GetOrderDetailCommand
-from commands.get_order_detail_admin import GetOrderDetailAdminCommand
-from commands.list_orders import ListOrdersCommand
-from commands.list_orders_admin import ListAllOrdersAdminCommand
-from commands.request_cancel import RequestCancelOrRefundCommand
-from commands.update_order import UpdateDeliveryStatusCommand, build_update_order_command
+from domain.command_handlers.orders_command_handler import (
+    GetOrderDetailAdminCommand,
+    GetOrderDetailCommand,
+    ListAllOrdersAdminCommand,
+    ListOrdersCommand,
+    RequestCancelOrRefundCommand,
+    UpdateDeliveryStatusCommand,
+    build_update_order_command,
+)
 from router import app, body_json, current_event, logger, query_params, resolve, route
-from schemas import BackofficeCancelInput, CancelRequestInput
-from service import OrderService
+from domain.validators.orders_validator import BackofficeCancelInput, CancelRequestInput
+from domain.services.orders_service import OrderService
 from shared.responses import http_response
 from shared.supabase_utils import get_authorization_header
 

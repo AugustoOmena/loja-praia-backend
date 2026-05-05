@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 import requests
 from repository import OrderRepository
-from schemas import (
+from domain.validators.orders_validator import (
     BackofficeCancelInput,
     BackofficeRefundByAmount,
     BackofficeRefundFull,

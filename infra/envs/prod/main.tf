@@ -263,7 +263,7 @@ module "orders_lambda" {
   source = "../../modules/lambda_function"
 
   function_name = "loja-omena-orders"
-  handler       = "handler.lambda_handler"
+  handler       = "api/orders_controller.lambda_handler"
   source_dir    = "../../../src/orders"
 
   layers = [
